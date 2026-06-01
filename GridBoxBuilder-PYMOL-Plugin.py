@@ -6,7 +6,15 @@ import re
 from pymol.Qt import QtWidgets,QtCore
 from pymol import cmd, gui
 from chempy import cpv
-#🙧 SETUP: Preferences
+##############################################################################################################
+##                                                                                                          ##
+##   ██    ██ ███████ ███████ ██████      ███████ ███████ ████████ ████████ ██ ███    ██  ██████  ███████   ##
+##   ██    ██ ██      ██      ██   ██     ██      ██         ██       ██    ██ ████   ██ ██       ██        ##
+##   ██    ██ ███████ █████   ██████      ███████ █████      ██       ██    ██ ██ ██  ██ ██   ███ ███████   ##
+##   ██    ██      ██ ██      ██   ██          ██ ██         ██       ██    ██ ██  ██ ██ ██    ██      ██   ##
+##    ██████  ███████ ███████ ██   ██     ███████ ███████    ██       ██    ██ ██   ████  ██████  ███████   ##
+##                                                                                                          ##
+##############################################################################################################
 DEFAULT={
     "group_name":"GridBox",
     "prefix":"GridBox",
@@ -38,39 +46,53 @@ AXCOLORS={
         "main_color":"#0055cc",
     }
 }
-#🙤
-#🙧 UTILS
+##############################################################################################################
+##                                                                                                          ##
+##                                   ██    ██ ████████ ██ ██      ███████                                   ##
+##                                   ██    ██    ██    ██ ██      ██                                        ##
+##                                   ██    ██    ██    ██ ██      ███████                                   ##
+##                                   ██    ██    ██    ██ ██           ██                                   ##
+##                                    ██████     ██    ██ ███████ ███████                                   ##
+##                                                                                                          ##
+##############################################################################################################
 _running=False
 updating_ui=False
 BOX_UI={}
 current_angles={'x':0.0,'y':0.0,'z':0.0}
 previousangles=current_angles.copy()
-
 def round_up(x,decimals=0):
     factor=10**decimals
     if x<0:
         return -math.ceil(-x*factor)/factor
     else:
         return math.ceil(x*factor)/factor
-
-def parse_vina_params(text):
-    pattern=re.compile(r"(size_[xyz]|center_[xyz])\s*=\s*([-+]?\d*\.?\d+)")
-    matches=pattern.findall(text)
-    params={k:float(v)for k,v in matches}
-    required=["center_x","center_y","center_z","size_x","size_y","size_z"]
-    missing=[k for k in required if k not in params]
-    if missing:
-        raise ValueError(f"Missing parameters: {missing}")
-    return params
-
 def quad(a,b,c,d,color):
     return[
         COLOR,*color,
         VERTEX,*a,VERTEX,*b,VERTEX,*c,
         VERTEX,*a,VERTEX,*c,VERTEX,*d
     ]
-#🙤
-#🙧 VIEWPORT AXES (adapted from https://pymolwiki.org/index.php/Axes)
+def parse_vina_params(text):
+    required=[
+        "center_x","center_y","center_z",
+        "size_x",  "size_y",  "size_z"
+    ]
+    params={k:float(v)for k,v in re.compile(r"(size_[xyz]|center_[xyz])\s*=\s*([-+]?\d*\.?\d+)").findall(text)}
+    missing=[k for k in required if k not in params]
+    if missing:
+        raise ValueError(f"Missing parameters: {missing}")
+    return params
+##############################################################################################################
+##                                                                                                          ##
+##    ██    ██ ██ ███████ ██     ██ ██████   ██████  ██████  ████████      █████  ██   ██ ███████ ███████   ##
+##    ██    ██ ██ ██      ██     ██ ██   ██ ██    ██ ██   ██    ██        ██   ██  ██ ██  ██      ██        ##
+##    ██    ██ ██ █████   ██  █  ██ ██████  ██    ██ ██████     ██        ███████   ███   █████   ███████   ##
+##     ██  ██  ██ ██      ██ ███ ██ ██      ██    ██ ██   ██    ██        ██   ██  ██ ██  ██           ██   ##
+##      ████   ██ ███████  ███ ███  ██       ██████  ██   ██    ██        ██   ██ ██   ██ ███████ ███████   ##
+##                                                                                                          ##
+##                    This section was adapted from https://pymolwiki.org/index.php/Axes                    ##
+##                   It is fully optional in regards to the functionality of this plugin.                   ##
+##############################################################################################################
 class PutCenterCallback(object):
     prev_v=None
     def __init__(self,name,corner=0):
@@ -104,7 +126,6 @@ class PutCenterCallback(object):
         z=-v[11]/30.0
         m=[z,0,0,0,0,z,0,0,0,0,z,0,t[0]/z,t[1]/z,t[2]/z,1]
         cmd.set_object_ttt(self.name,m)
-
 def draw_axes(name=DEFAULT["prefix"]+'_ViewportAxes',groupname=DEFAULT["group_name"]):
     w=.06;l=.75;h=.25;d=w*1.618
     obj=[
@@ -118,8 +139,17 @@ def draw_axes(name=DEFAULT["prefix"]+'_ViewportAxes',groupname=DEFAULT["group_na
     PutCenterCallback(name,1).load()
     cmd.load_cgo(obj,name)
     cmd.group(groupname,name)
-#🙤
-#🙧 DRAW BOX: Faces & Edges
+##############################################################################################################
+##                                                                                                          ##
+##      ██████  ██████   █████  ██     ██      ██████  ██████  ██ ██████      ██████   ██████  ██   ██      ##
+##      ██   ██ ██   ██ ██   ██ ██     ██     ██       ██   ██ ██ ██   ██     ██   ██ ██    ██  ██ ██       ##
+##      ██   ██ ██████  ███████ ██  █  ██     ██   ███ ██████  ██ ██   ██     ██████  ██    ██   ███        ##
+##      ██   ██ ██   ██ ██   ██ ██ ███ ██     ██    ██ ██   ██ ██ ██   ██     ██   ██ ██    ██  ██ ██       ##
+##      ██████  ██   ██ ██   ██  ███ ███       ██████  ██   ██ ██ ██████      ██████   ██████  ██   ██      ##
+##                                                                                                          ##
+##############################################################################################################
+#  Faces & Edges
+# ------------------------------------------------------------------------------------------------------------
 def draw_box(min_c,max_c,face_alpha,boxname=DEFAULT["prefix"],groupname=DEFAULT["group_name"]):
     x1,y1,z1=min_c
     x2,y2,z2=max_c
@@ -140,8 +170,9 @@ def draw_box(min_c,max_c,face_alpha,boxname=DEFAULT["prefix"],groupname=DEFAULT[
     cmd.load_cgo(obje,boxname+"_edges")
     cmd.group(groupname,boxname+"_edges")
     return obj
-#🙤
-#🙧 DRAW BOX: Center & Handles
+# ------------------------------------------------------------------------------------------------------------
+#  Center & Handles
+# ------------------------------------------------------------------------------------------------------------
 def init_box(
     boxname=DEFAULT["prefix"],
     groupname=DEFAULT["group_name"],
@@ -167,8 +198,9 @@ def init_box(
     cmd.set("dot_density",3,boxname+"_*")
     cmd.group(groupname,boxname+"_*")
     cmd.set("defer_updates",0)
-#🙤
-#🙧 DRAW BOX: Update
+# ------------------------------------------------------------------------------------------------------------
+#  Update Objects
+# ------------------------------------------------------------------------------------------------------------
 def redraw(boxname=DEFAULT["prefix"],groupname=DEFAULT["group_name"],face_alpha=DEFAULT["alpha"],min_c=None,max_c=None):
     if min_c is None or max_c is None:
         min_c,max_c=compute_box(boxname)
@@ -197,8 +229,17 @@ def redraw(boxname=DEFAULT["prefix"],groupname=DEFAULT["group_name"],face_alpha=
     except:
         pass
     boxupdater.spinbox_updated.emit(*get_handlers(boxname))
-#🙤
-#🙧 LIVE UPDATE
+##############################################################################################################
+##                                                                                                          ##
+##             ██      ██ ██    ██ ███████     ██    ██ ██████  ██████   █████  ████████ ███████            ##
+##             ██      ██ ██    ██ ██          ██    ██ ██   ██ ██   ██ ██   ██    ██    ██                 ##
+##             ██      ██ ██    ██ █████       ██    ██ ██████  ██   ██ ███████    ██    █████              ##
+##             ██      ██  ██  ██  ██          ██    ██ ██      ██   ██ ██   ██    ██    ██                 ##
+##             ███████ ██   ████   ███████      ██████  ██      ██████  ██   ██    ██    ███████            ##
+##                                                                                                          ##
+##                  This functionality allows the user to manually move the box handles and                 ##
+##             have the grid box redrawn in order to adapt to their new positions in real time.             ##
+##############################################################################################################
 def live_update(boxname=DEFAULT["prefix"],interval=DEFAULT["update_interval"]):
     global _running
     last=None
@@ -212,48 +253,55 @@ def live_update(boxname=DEFAULT["prefix"],interval=DEFAULT["update_interval"]):
         except:
             print("Live update error:",e)
         time.sleep(interval)
-
 def start_live(boxname=DEFAULT["prefix"]):
     global _running
     _running=True
     t=threading.Thread(target=live_update,args=(boxname,),daemon=True)
     t.start()
     cmd.mask(f"all and not {DEFAULT['prefix']}_*")
-
 def stop_live():
     global _running
     cmd.unmask(f"all and not {DEFAULT['prefix']}_*")
     _running=False
-#🙤
-#🙧 EDIT BOX: Helpers
+##############################################################################################################
+##                                                                                                          ##
+##         ███████ ██████  ██ ████████      ██████  ██████  ██ ██████      ██████   ██████  ██   ██         ##
+##         ██      ██   ██ ██    ██        ██       ██   ██ ██ ██   ██     ██   ██ ██    ██  ██ ██          ##
+##         █████   ██   ██ ██    ██        ██   ███ ██████  ██ ██   ██     ██████  ██    ██   ███           ##
+##         ██      ██   ██ ██    ██        ██    ██ ██   ██ ██ ██   ██     ██   ██ ██    ██  ██ ██          ##
+##         ███████ ██████  ██    ██         ██████  ██   ██ ██ ██████      ██████   ██████  ██   ██         ##
+##                                                                                                          ##
+##############################################################################################################
+#  Helpers
+# ------------------------------------------------------------------------------------------------------------
 def get_handlers(boxname=DEFAULT["prefix"]):
     c =tuple(cmd.get_coords(boxname+"_center")[0])
     px=tuple(cmd.get_coords(boxname+"_x")[0])
     py=tuple(cmd.get_coords(boxname+"_y")[0])
     pz=tuple(cmd.get_coords(boxname+"_z")[0])
     return c,px,py,pz
-
 def compute_box(boxname=DEFAULT["prefix"]):
     c,px,py,pz=get_handlers(boxname)
     dx=abs(px[0]-c[0])
     dy=abs(py[1]-c[1])
     dz=abs(pz[2]-c[2])
     return(c[0]-dx,c[1]-dy,c[2]-dz),(c[0]+dx,c[1]+dy,c[2]+dz)
-
 def move_handlers(boxname=DEFAULT["prefix"]):
     c,px,py,pz=get_handlers(boxname)
     cmd.alter_state(1,boxname+"_x",f"(x,y,z)=({px[0]},{c[1]},{c[2]})")
     cmd.alter_state(1,boxname+"_y",f"(x,y,z)=({c[0]},{py[1]},{c[2]})")
     cmd.alter_state(1,boxname+"_z",f"(x,y,z)=({c[0]},{c[1]},{pz[2]})")
     cmd.rebuild()
-#🙤
-#🙧 EDIT BOX: Appearance
+# ------------------------------------------------------------------------------------------------------------
+#  Grid Box Appearance
+# ------------------------------------------------------------------------------------------------------------
 def faces_opacity(alpha=DEFAULT["alpha"],boxname=DEFAULT["prefix"]):
     DEFAULT["alpha"]=alpha
     cmd.set("cgo_transparency",alpha,boxname+"_faces")
     redraw(boxname)
-#🙤
-#🙧 EDIT BOX: Wrap Around Selection
+# ------------------------------------------------------------------------------------------------------------
+#  Wrap Grid Box Around Selection
+# ------------------------------------------------------------------------------------------------------------
 def wrapsel(selection,padding,boxname=DEFAULT["prefix"]):
     (minX,minY,minZ),(maxX,maxY,maxZ)=cmd.get_extent(selection)
     new_min=[minX-padding,minY-padding,minZ-padding]
@@ -271,8 +319,17 @@ def wrapsel(selection,padding,boxname=DEFAULT["prefix"]):
     cmd.rebuild()
     redraw(boxname)
     print(f"Wrapped box around '{selection}' with padding {padding} Å.")
-#🙤
-#🙧 GUI SETUP: Helpers
+##############################################################################################################
+##                                                                                                          ##
+##                     ██████  ██    ██ ██     ███████ ███████ ████████ ██    ██ ██████                     ##
+##                    ██       ██    ██ ██     ██      ██         ██    ██    ██ ██   ██                    ##
+##                    ██   ███ ██    ██ ██     ███████ █████      ██    ██    ██ ██████                     ##
+##                    ██    ██ ██    ██ ██          ██ ██         ██    ██    ██ ██                         ##
+##                     ██████   ██████  ██     ███████ ███████    ██     ██████  ██                         ##
+##                                                                                                          ##
+##############################################################################################################
+#  GUI Appearance: Helpers
+# ------------------------------------------------------------------------------------------------------------
 def setQDoubleSpinStyle(qbox,axis,extra_main=""):
     qbox.setStyleSheet((
         "QDoubleSpinBox{"
@@ -284,16 +341,17 @@ def setQDoubleSpinStyle(qbox,axis,extra_main=""):
         "QDoubleSpinBox::up-button,QDoubleSpinBox::down-button{}"
         "QDoubleSpinBox::up-arrow,QDoubleSpinBox::down-arrow{}"
     ))
-
 def set_textbox_height(widget,lines=7,padding=2):
     fm=widget.fontMetrics()
     widget.setMinimumHeight(fm.lineSpacing()*lines-padding)
     widget.setMaximumHeight(fm.lineSpacing()*lines-padding)
     widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding,QtWidgets.QSizePolicy.Fixed)
-#🙤
-#🙧 GUI SETUP: CollapsibleBox
+# ------------------------------------------------------------------------------------------------------------
+#  GUI Custom Widget : CollapsibleBox
+# ------------------------------------------------------------------------------------------------------------
 class CollapsibleBox(QtWidgets.QWidget):
-    def __init__(self,title="",open=False,parent=None,spacing=0,
+    def __init__(
+        self,title="",open=False,parent=None,spacing=0,
         bold=True,color="#000",background="#fafafa",border="1px solid #ccc"
     ):
         super().__init__(parent)
@@ -343,16 +401,26 @@ class CollapsibleBox(QtWidgets.QWidget):
         if old_layout is not None:
             QtWidgets.QWidget().setLayout(old_layout)
         self.content_area.setLayout(layout)
-#🙤
-#🙧 GUI MAIN
-#🙧 Auto Update GUI Text
+# ------------------------------------------------------------------------------------------------------------
+#  Auto Update GUI Text
+# ------------------------------------------------------------------------------------------------------------
 class BoxUpdater(QtCore.QObject):
     text_updated=QtCore.Signal(str,str)
     spinbox_updated=QtCore.Signal(tuple,tuple,tuple,tuple)
 boxupdater=BoxUpdater()
-#🙤
+##############################################################################################################
+##                                                                                                          ##
+##                  ██████ ██████  ███████  █████  ████████ ███████      ██████  ██    ██ ██                ##
+##                 ██      ██   ██ ██      ██   ██    ██    ██          ██       ██    ██ ██                ##
+##                 ██      ██████  █████   ███████    ██    █████       ██   ███ ██    ██ ██                ##
+##                 ██      ██   ██ ██      ██   ██    ██    ██          ██    ██ ██    ██ ██                ##
+##                  ██████ ██   ██ ███████ ██   ██    ██    ███████      ██████   ██████  ██                ##
+##                                                                                                          ##
+##############################################################################################################
 def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
-    #🙧 Create Widget
+    # --------------------------------------------------------------------------------------------------------
+    #  Create Widget
+    # --------------------------------------------------------------------------------------------------------
     main_window=gui.get_qtwindow()
     dock=QtWidgets.QDockWidget("Grid Box Builder",main_window)
     dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea|QtCore.Qt.RightDockWidgetArea)
@@ -364,8 +432,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     widget=QtWidgets.QWidget()
     layout=QtWidgets.QVBoxLayout(widget)
     layout.setAlignment(QtCore.Qt.AlignTop)
-    #🙤
-    #🙧 SECTION: Box Appearance
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Box Appearance
+    # --------------------------------------------------------------------------------------------------------
     group=CollapsibleBox("Box Appearance",bold=False,background="""qlineargradient(
         x1:0, y1:0, x2:1, y2:0,
         stop:0 rgba(75,0,130,25),
@@ -391,8 +460,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     opacity_input.valueChanged.connect(boxstyle_action)
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 SECTION: Draw Exact Box
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Draw Exact Box
+    # --------------------------------------------------------------------------------------------------------
     group=CollapsibleBox("Draw Box From AutoDock Parameters")
     g_layout=QtWidgets.QFormLayout()
     g_layout.setSpacing(2)
@@ -420,8 +490,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     g_layout.addRow(btn_drawbox)
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 SECTION: Box Around Selection
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Box Around Selection
+    # --------------------------------------------------------------------------------------------------------
     group=CollapsibleBox("Wrap Box Around Selection",open=True)
     g_layout=QtWidgets.QFormLayout()
     g_layout.setSpacing(2)
@@ -440,8 +511,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     g_layout.addRow(btn_wrapsel)
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 SECTION: Box Handler Tweaking
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Tweak Box Handle Positions
+    # --------------------------------------------------------------------------------------------------------
     group=CollapsibleBox("Tweak Box Handle Positions",open=True)
     g_layout=QtWidgets.QFormLayout()
     cx_input=QtWidgets.QDoubleSpinBox()
@@ -539,8 +611,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
         spin.valueChanged.connect(on_value_changed)
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 SECTION: Live Editing (doc only)
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Live Editing (doc only)
+    # --------------------------------------------------------------------------------------------------------
     group=CollapsibleBox("Live Editing Box Coordinates (Tutorial)",bold=False,background="transparent")
     g_layout=QtWidgets.QVBoxLayout()
     label=QtWidgets.QLabel()
@@ -560,8 +633,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     g_layout.addWidget(label)
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 SECTION: Display Box Coordinates
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI SECTION: Display Box Coordinates
+    # --------------------------------------------------------------------------------------------------------
     group=QtWidgets.QGroupBox("Current Box Coordinates")
     group.setSizePolicy(QtWidgets.QSizePolicy.Preferred,QtWidgets.QSizePolicy.Maximum)
     g_layout=QtWidgets.QFormLayout()
@@ -606,11 +680,16 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
         text_display_copy.setPlainText(copy_txt)
         text_display_info.setPlainText(info_txt)
     boxupdater.text_updated.connect(update_box_info)
-    #🙤
-    #🙧 SECTION: Rotate Receptor
+    ##########################################################################################################
+    ## ---------------------------------------------------------------------------------------------------- ##
+    ##  GUI SECTION: Rotate Receptor                                                                        ##
+    ## ---------------------------------------------------------------------------------------------------- ##
+    ##########################################################################################################
     group=CollapsibleBox("Rotate Receptor")
     g_layout=QtWidgets.QFormLayout()
-    #🙧 MATH
+    # --------------------------------------------------------------------------------------------------------
+    #  MATH
+    # --------------------------------------------------------------------------------------------------------
     original_coords={}
     def apply_rotation(boxname=boxname):
         global previousangles
@@ -636,8 +715,9 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
                 cmd.mask(f"all and not {DEFAULT['prefix']}_*")
         except Exception as e:
             print("Rotation error:",e)
-    #🙤
-    #🙧 GUI
+    # --------------------------------------------------------------------------------------------------------
+    #  GUI
+    # --------------------------------------------------------------------------------------------------------
     obj_input=QtWidgets.QLineEdit(DEFAULT["rotate_sele"])
     g_layout.addRow("Object(s):",obj_input)
     last_selection={"text":obj_input.text()}
@@ -714,19 +794,25 @@ def dockingBoxGUI(_Qtcheck,boxname=DEFAULT["prefix"]):
     btn_reset=QtWidgets.QPushButton("Reset Position")
     btn_reset.clicked.connect(reset_rotation)
     g_layout.addRow(btn_reset)
-    #🙤
     group.setLayout(g_layout)
     layout.addWidget(group)
-    #🙤
-    #🙧 Finalize
+    # --------------------------------------------------------------------------------------------------------
+    #  Finalize
+    # --------------------------------------------------------------------------------------------------------
     layout.addStretch()
     scroll.setWidget(widget)
     dock.setWidget(scroll)
     main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea,dock)
     QtCore.QTimer.singleShot(0,lambda:redraw(boxname))
-    #🙤
-#🙤
-
+##############################################################################################################
+##                                                                                                          ##
+##                                         ██ ███    ██ ██ ████████                                         ##
+##                                         ██ ████   ██ ██    ██                                            ##
+##                                         ██ ██ ██  ██ ██    ██                                            ##
+##                                         ██ ██  ██ ██ ██    ██                                            ##
+##                                         ██ ██   ████ ██    ██                                            ##
+##                                                                                                          ##
+##############################################################################################################
 def run_gridboxbuilder():
     cmd.set("auto_zoom",0)
     init_box()
@@ -735,7 +821,6 @@ def run_gridboxbuilder():
     cmd.extend("stop_live",stop_live)
     QtCore.QTimer.singleShot(0,lambda:redraw(DEFAULT["prefix"]))
     draw_axes()
-
 def __init_plugin__(app=None):
     from pymol.plugins import addmenuitemqt
     addmenuitemqt('Grid Box Builder',run_gridboxbuilder)
